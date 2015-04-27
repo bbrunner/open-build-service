@@ -163,9 +163,42 @@ class BsRequestActionMaintenanceIncident < BsRequestAction
       self.source_cleanup
     end
 
+
+
+    #gathering all information needed for patchinfo
+
+    new_diff = Array.new()
+    issueList = Array.new()
+
+
+
+    req = self.bs_request
+    reqdiff = ''
+    sourcediff = ''
+    req.bs_request_actions.each do |diff|
+      reqdiff = diff.sourcediff(view:"xml",withissues:true)
+      doc=REXML::Document.new(reqdiff)
+      issues=doc.root.elements['issues']
+      issues.elements.each("issue") do |issue|
+        if issue.attributes['state'] == 'added'
+          issueList << issue
+        end
+      end
+
+      lines = reqdiff.split("\n")
+      lines.each do |line|
+            new_diff << "\t" + line if line.start_with?("+")
+      end
+      new_diff.shift
+      d = new_diff.join("\n")
+      sourcediff << d
+    end
+
+
+
     # create a patchinfo if missing and incident has just been created
     if opts[:check_for_patchinfo] and !incident_project.packages.joins(:package_kinds).where("kind = 'patchinfo'").exists?
-      Patchinfo.new.create_patchinfo_from_request(incident_project, self.bs_request)
+        Patchinfo.new.create_patchinfo_from_request(incident_project, self.bs_request, self.source_package, sourcediff, issueList)
     end
 
   end
